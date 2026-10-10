@@ -26,3 +26,7 @@ devenv.local.yaml
 
 2_a1.zip
 viva
+# Environment secrets
+.env
+.env.*
+!.env.example
