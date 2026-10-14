@@ -191,7 +191,7 @@ The SQL test queries and recorded execution plans are in `sql/test_queries.sql` 
 
 ## Team contributions
 
-All four team members contributed to both design and technical development, including reviewing the shared wireframes/design system, discussing the user flows, integrating screens with the API, testing the application and preparing the final submission. The primary ownership below indicates coordination responsibilities; it does not mean the named member worked only on that area. **Replace the member placeholders with the team's names before submission and keep this table consistent with the work actually completed.**
+All four team members contributed to both design and technical development, including reviewing the shared wireframes/design system, discussing the user flows, integrating screens with the API, testing the application and preparing the final submission. The primary ownership below indicates coordination responsibilities; it does not mean the named member worked only on that area.
 
 | Team member | Design contribution | Technical contribution | Primary coordination responsibility |
 |---|---|---|---|
