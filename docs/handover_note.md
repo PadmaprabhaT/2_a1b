@@ -17,4 +17,4 @@ Handover note · MD
 
 - Added `OUT` parameters `p_booking_id`, `p_success` and `p_error` to `process_booking_payment`. The API now returns the booking, or `400 BOOKING_REJECTED` with the reason.
 
-Claude finished the response
+
