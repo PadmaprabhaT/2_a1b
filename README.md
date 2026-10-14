@@ -195,17 +195,8 @@ All four team members contributed to both design and technical development, incl
 
 | Team member | Design contribution | Technical contribution | Primary coordination responsibility |
 |---|---|---|---|
-| `Name` | Contributed to screen flows, wireframe review and visual consistency across screens. | Contributed to frontend implementation, API integration and testing. | Browse and shared UI components |
-| `Name` | Contributed to screen layouts, interaction states and design-system consistency. | Contributed to API/database integration, implementation and debugging. | Booking workflow |
-| `Name` | Contributed to wireframe review, information hierarchy and usability improvements. | Contributed to frontend implementation, data handling and workflow testing. | Wallet & Audit Trail and Reviews & Amenities |
-| `Name` | Contributed to visual consistency, responsive behaviour and review of all screen designs. | Contributed to API integration, analytics/map implementation, testing and documentation. | Analytics, Search Hotspots and integration |
+| `Name` | Contributed to screen flows, wireframe review and visual consistency across screens. | Contributed to frontend implementation, API integration and testing. | Database design suggestions, schema review, API setup and backend connectivity |
+| `Name` | Contributed to screen layouts, interaction states and design-system consistency. | Contributed to API/database integration, implementation and debugging. | Wireframe design, visual consistency, Analytics dashboard implementation and frontend integration |
+| `Name` | Contributed to wireframe review, information hierarchy and usability improvements. | Contributed to frontend implementation, data handling and workflow testing. | Frontend screen development, database configuration, data integration and workflow testing |
+| `Name` | Contributed to visual consistency, responsive behaviour and review of all screen designs. | Contributed to API integration, analytics/map implementation, testing and documentation. | Frontend screen development, database setup support, API integration, data handling and testing |
 
-## Submission checklist
-
-- [ ] Replace all placeholders with the final commit hash, demo URL and four member names.
-- [ ] Verify setup instructions on a clean environment.
-- [ ] Confirm all six screens and the four inherited workflows against seeded data.
-- [ ] Include screenshots that reflect the current implementation.
-- [ ] Ensure `README.md` links to the GitHub repository and the demo video.
-- [ ] Create the Moodle ZIP with the required team filename and keep it below 20 MB.
-- [ ] Exclude `node_modules/`, virtual environments, `__pycache__/`, build output and database dumps.
