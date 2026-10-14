@@ -6,80 +6,84 @@ const router = express.Router();
 
 // GET /api/analytics/window-revenue
 // Returns daily revenue, 7-day moving average, and DENSE_RANK per property.
+
 router.get("/window-revenue", async (req, res) => {
   try {
     const result = await pool.query(`
-      WITH
-        daily_property_revenue AS (
-          SELECT
-            b.property_id,
-            (b.created_at AT TIME ZONE 'UTC')::date AS booking_date,
-            SUM(b.total_cost) AS daily_revenue
-          FROM bookings b
-          WHERE
-            b.created_at >=
+      WITH calendar AS (
+        SELECT g.d::date AS booking_date
+        FROM generate_series(
+          CURRENT_DATE - 36,
+          CURRENT_DATE,
+          INTERVAL '1 day'
+        ) AS g(d)
+      ),
+      daily_property_revenue AS (
+        SELECT
+          b.property_id,
+          (b.created_at AT TIME ZONE 'UTC')::date AS booking_date,
+          SUM(b.total_cost) AS daily_revenue
+        FROM bookings b
+        WHERE b.created_at >=
               ((CURRENT_DATE - 36)::timestamp AT TIME ZONE 'UTC')
-            AND b.created_at <
+          AND b.created_at <
               ((CURRENT_DATE + 1)::timestamp AT TIME ZONE 'UTC')
-          GROUP BY
-            b.property_id,
-            (b.created_at AT TIME ZONE 'UTC')::date
-        ),
-        active_properties AS (
-          SELECT DISTINCT property_id
-          FROM daily_property_revenue
-        ),
-        calendar AS (
-          SELECT g.d::date AS booking_date
-          FROM generate_series(
-            (CURRENT_DATE - 36)::timestamp,
-            CURRENT_DATE::timestamp,
-            INTERVAL '1 day'
-          ) AS g(d)
-        ),
-        dense_daily_revenue AS (
-          SELECT
-            ap.property_id,
-            c.booking_date,
-            COALESCE(dpr.daily_revenue, 0.00) AS daily_revenue
-          FROM active_properties ap
-          CROSS JOIN calendar c
-          LEFT JOIN daily_property_revenue dpr
-            ON dpr.property_id = ap.property_id
-            AND dpr.booking_date = c.booking_date
-        ),
-        moving_average_calc AS (
-          SELECT
-            property_id,
-            booking_date,
-            daily_revenue,
-            AVG(daily_revenue) OVER w AS moving_avg_7d,
-            SUM(daily_revenue) OVER w AS trailing_7d_revenue,
-            COUNT(*) OVER w AS days_in_window
-          FROM dense_daily_revenue
-          WINDOW w AS (
+        GROUP BY
+          b.property_id,
+          (b.created_at AT TIME ZONE 'UTC')::date
+      ),
+      all_property_days AS (
+        SELECT
+          p.id AS property_id,
+          c.booking_date,
+          COALESCE(d.daily_revenue, 0)::numeric AS daily_revenue
+        FROM properties p
+        CROSS JOIN calendar c
+        LEFT JOIN daily_property_revenue d
+          ON d.property_id = p.id
+          AND d.booking_date = c.booking_date
+      ),
+      moving_average_calc AS (
+        SELECT
+          property_id,
+          booking_date,
+          daily_revenue,
+          AVG(daily_revenue) OVER (
             PARTITION BY property_id
             ORDER BY booking_date
-            RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW
-          )
-        )
+            ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+          ) AS moving_avg_7d,
+          SUM(daily_revenue) OVER (
+            PARTITION BY property_id
+            ORDER BY booking_date
+            ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+          ) AS trailing_7d_revenue
+        FROM all_property_days
+      ),
+      ranked AS (
+        SELECT
+          booking_date,
+          property_id,
+          daily_revenue,
+          ROUND(moving_avg_7d, 2) AS moving_avg_7d,
+          trailing_7d_revenue,
+          DENSE_RANK() OVER (
+            PARTITION BY booking_date
+            ORDER BY moving_avg_7d DESC
+          ) AS rank_by_moving_avg
+        FROM moving_average_calc
+      )
       SELECT
         booking_date,
         property_id,
         daily_revenue,
-        ROUND(moving_avg_7d, 2) AS moving_avg_7d,
+        moving_avg_7d,
         trailing_7d_revenue,
-        days_in_window,
-        DENSE_RANK() OVER (
-          PARTITION BY booking_date
-          ORDER BY moving_avg_7d DESC
-        ) AS rank_by_moving_avg
-      FROM moving_average_calc
+        7 AS days_in_window,
+        rank_by_moving_avg
+      FROM ranked
       WHERE booking_date >= CURRENT_DATE - 30
-      ORDER BY
-        booking_date DESC,
-        rank_by_moving_avg ASC,
-        property_id ASC
+      ORDER BY booking_date DESC, rank_by_moving_avg, property_id
     `);
 
     return res.json({
@@ -99,6 +103,7 @@ router.get("/window-revenue", async (req, res) => {
     });
   }
 });
+
 
 // GET /api/analytics/property-performance
 // Returns the precomputed performance summary for each property.
