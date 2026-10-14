@@ -195,8 +195,8 @@ All four team members contributed to both design and technical development, incl
 
 | Team member | Design contribution | Technical contribution | Primary coordination responsibility |
 |---|---|---|---|
-| `Name` | Contributed to screen flows, wireframe review and visual consistency across screens. | Contributed to frontend implementation, API integration and testing. | Database design suggestions, schema review, API setup and backend connectivity |
-| `Name` | Contributed to screen layouts, interaction states and design-system consistency. | Contributed to API/database integration, implementation and debugging. | Wireframe design, visual consistency, Analytics dashboard implementation and frontend integration |
-| `Name` | Contributed to wireframe review, information hierarchy and usability improvements. | Contributed to frontend implementation, data handling and workflow testing. | Frontend screen development, database configuration, data integration and workflow testing |
-| `Name` | Contributed to visual consistency, responsive behaviour and review of all screen designs. | Contributed to API integration, analytics/map implementation, testing and documentation. | Frontend screen development, database setup support, API integration, data handling and testing |
+| `Padamaprabha` | Contributed to screen flows, wireframe review and visual consistency across screens. | Contributed to frontend implementation, API integration and testing. | Database design suggestions, schema review, API setup and backend connectivity |
+| `Rashmi Netam` | Contributed to screen layouts, interaction states and design-system consistency. | Contributed to API/database integration, implementation and debugging. | Wireframe design, visual consistency, Analytics dashboard implementation and frontend integration |
+| `Pal Shah` | Contributed to wireframe review, information hierarchy and usability improvements. | Contributed to frontend implementation, data handling and workflow testing. | Frontend screen development, database configuration, data integration and workflow testing |
+| `Varun Kharayat` | Contributed to visual consistency, responsive behaviour and review of all screen designs. | Contributed to API integration, analytics/map implementation, testing and documentation. | Frontend screen development, database setup support, API integration, data handling and testing |
 
