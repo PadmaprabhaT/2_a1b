@@ -1,5 +1,7 @@
 
 const express = require("express");
+const { UUID } = require("mongodb");
+const { validate: isValidUUID } = require("uuid");
 const pool = require("../db");
 
 const router = express.Router();
@@ -432,14 +434,37 @@ router.get("/reviews", async (req, res) => {
     });
   }
 
+  const propertyId = req.query.property_id;
+  if (propertyId !== undefined && !isValidUUID(String(propertyId))) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "INVALID_ID",
+        message: "property_id must be a valid UUID."
+      }
+    });
+  }
+
   try {
+    if (propertyId) {
+      const property = await pool.query("SELECT id FROM properties WHERE id = $1", [propertyId]);
+      if (property.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: "PROPERTY_NOT_FOUND",
+            message: "Property not found."
+          }
+        });
+      }
+    }
+
     const db = await require("../mongo").connectMongo();
     const windowStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const match = { created_at: { $gte: windowStart } };
+    if (propertyId) match.property_id = new UUID(String(propertyId));
 
-    const pipeline = [
-      { $match: { created_at: { $gte: windowStart } } },
-      {
-        $facet: {
+    const facet = {
           rating_distribution: [
             { $group: { _id: "$rating", count: { $sum: 1 } } },
             { $sort: { _id: 1 } }
@@ -471,8 +496,26 @@ router.get("/reviews", async (req, res) => {
               }
             }
           ]
+    };
+    if (propertyId) {
+      facet.reviews = [
+        { $sort: { created_at: -1 } },
+        { $limit: 30 },
+        {
+          $project: {
+            _id: 0,
+            rating: 1,
+            review_text: 1,
+            location_tags: 1,
+            created_at: 1
+          }
         }
-      },
+      ];
+    }
+
+    const pipeline = [
+      { $match: match },
+      { $facet: facet },
       {
         $set: {
           overall: {

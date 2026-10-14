@@ -506,6 +506,7 @@ MongoDB `$facet` aggregation on `PropertyReviews` for reviews created within the
 | Query param | Type | Default | Rules |
 |---|---|---|---|
 | `days` | integer | 30 | 1 to 365 |
+| `property_id` | UUID | none | Limit the summary and return that property's latest reviews |
 
 ```json
 {
@@ -528,10 +529,14 @@ MongoDB `$facet` aggregation on `PropertyReviews` for reviews created within the
 - `rating_distribution` always has 5 entries (ratings 1 to 5), zero-filled.
 - `top_tags` is the top 10 `location_tags`, sorted by count then name.
 - With no reviews, `overall` returns zero/null values.
+- Without `property_id`, `overall` covers every property in the window.
+- With `property_id`, `overall` and `rating_distribution` are for that property only, and `reviews` lists up to 30 latest reviews (`rating`, `review_text`, `location_tags`, `created_at`).
+
 | Status | Code |
 |---|---|
 | 200 | |
-| 400 | `INVALID_REVIEW_WINDOW` |
+| 400 | `INVALID_REVIEW_WINDOW`, `INVALID_ID` |
+| 404 | `PROPERTY_NOT_FOUND` |
 | 500 | `REVIEW_ANALYTICS_QUERY_FAILED` |
 
 ---

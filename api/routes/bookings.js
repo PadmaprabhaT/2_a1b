@@ -232,9 +232,9 @@ router.post("/", async (req, res) => {
         $3,
         COALESCE($4::date, CURRENT_DATE),
         $5,
-        NULL,
-        NULL,
-        NULL
+        NULL::uuid,
+        NULL::boolean,
+        NULL::text
       )`,
       [guest_id, property_id, cost, check_in_date || null, stayNights]
     );

@@ -1,690 +1,206 @@
+import { useEffect, useState } from "react";
+import { api } from "./api";
+import GuestPicker from "./components/GuestPicker";
+import { initials, money } from "./format";
+import Analytics from "./screens/Analytics";
+import Audit from "./screens/Audit";
+import BookStay from "./screens/BookStay";
+import Browse from "./screens/Browse";
+import MapScreen from "./screens/MapScreen";
+import Reviews from "./screens/Reviews";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from "recharts";
+const ACTOR_KEY = "stayspot.actor";
+const SCREEN_KEY = "stayspot.screen";
+const NAV = [
+  ["browse", "Browse"],
+  ["book", "Booking"],
+  ["audit", "Wallet & Audit Trail"],
+  ["analytics", "Analytics"],
+  ["map", "Search Hotspots"],
+  ["reviews", "Reviews & Amenities"],
+];
 
-import {
-  LayoutGrid,
-  CalendarDays,
-  Building2,
-  Wallet,
-  MapPin,
-  Star,
-  RefreshCw,
-  TrendingUp,
-  Moon,
-  CheckCircle2,
-  AlertCircle,
-  Database,
-  ChevronRight,
-} from "lucide-react";
+const CRUMB = {
+  browse: "Browse",
+  book: "Booking",
+  audit: "Wallet & Audit Trail",
+  analytics: "Analytics",
+  map: "Search Hotspots",
+  reviews: "Reviews & Amenities",
+};
 
-import "./App.css";
+function readActor() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ACTOR_KEY) || "null");
+    if (saved?.id && saved?.name) return saved;
+  } catch {
+    return null;
+  }
+  return null;
+}
 
-const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
-const PAGE_SIZE = 10;
-
-const money = (value) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0);
-
-const number = (value) =>
-  new Intl.NumberFormat("en-IN").format(Number(value) || 0);
-
-function App() {
-  const [performance, setPerformance] = useState([]);
-  const [revenue, setRevenue] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [lastLoaded, setLastLoaded] = useState(null);
-
-  const loadAnalytics = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const [performanceResponse, revenueResponse] = await Promise.all([
-        fetch(`${API}/analytics/property-performance`),
-        fetch(`${API}/analytics/window-revenue`),
-      ]);
-
-      if (!performanceResponse.ok || !revenueResponse.ok) {
-        throw new Error(
-          "The analytics API returned an error. Check that the backend and database are running."
-        );
-      }
-
-      const [performanceJson, revenueJson] = await Promise.all([
-        performanceResponse.json(),
-        revenueResponse.json(),
-      ]);
-
-      if (
-        performanceJson.success === false ||
-        revenueJson.success === false
-      ) {
-        throw new Error("The server could not retrieve analytics data.");
-      }
-
-      setPerformance(
-        Array.isArray(performanceJson.data) ? performanceJson.data : []
-      );
-      setRevenue(Array.isArray(revenueJson.data) ? revenueJson.data : []);
-      setLastLoaded(new Date());
-    } catch (err) {
-      setError(err.message || "Could not load analytics. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+export default function App() {
+  const [screen, setScreen] = useState(
+    () => sessionStorage.getItem(SCREEN_KEY) || "browse"
+  );
+  const [actor, setActor] = useState(readActor);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [draftProperty, setDraftProperty] = useState(null);
+  const [online, setOnline] = useState(null);
+  const [healthTick, setHealthTick] = useState(0);
 
   useEffect(() => {
-    loadAnalytics();
-  }, [loadAnalytics]);
+    sessionStorage.setItem(SCREEN_KEY, screen);
+  }, [screen]);
 
-  const refreshAnalytics = async () => {
-    setRefreshing(true);
-    setError("");
-    setNotice("");
-
-    try {
-      const response = await fetch(`${API}/analytics/refresh`, {
-        method: "POST",
-      });
-      const json = await response.json();
-
-      if (!response.ok || json.success === false) {
-        throw new Error(json?.error?.message || "Refresh failed.");
-      }
-
-      setNotice("Property performance summary refreshed successfully.");
-      await loadAnalytics();
-    } catch (err) {
-      setError(err.message || "Refresh failed. Please try again.");
-    } finally {
-      setRefreshing(false);
+  useEffect(() => {
+    if (!actor) {
+      localStorage.removeItem(ACTOR_KEY);
+      return;
     }
-  };
-
-  const cards = useMemo(() => {
-    const sum = (field) =>
-      performance.reduce(
-        (total, row) => total + (Number(row[field]) || 0),
-        0
-      );
-
-    return [
-      {
-        label: "Total bookings",
-        value: number(sum("total_bookings")),
-        icon: CalendarDays,
-      },
-      {
-        label: "Gross revenue",
-        value: money(sum("gross_revenue")),
-        icon: Wallet,
-      },
-      {
-        label: "Realised revenue",
-        value: money(sum("realised_revenue")),
-        icon: TrendingUp,
-      },
-      {
-        label: "Nights booked",
-        value: number(sum("total_nights_booked")),
-        icon: Moon,
-      },
-    ];
-  }, [performance]);
-
-  // Aggregate daily revenue across all properties, then calculate
-  // a seven-day moving average for the overall revenue chart.
-  const chartData = useMemo(() => {
-    const byDate = new Map();
-
-    for (const row of revenue) {
-      const date = String(row.booking_date || "").slice(0, 10);
-      if (!date) continue;
-
-      byDate.set(
-        date,
-        (byDate.get(date) || 0) + (Number(row.daily_revenue) || 0)
-      );
-    }
-
-    const dailyData = [...byDate.entries()]
-      .map(([date, dailyRevenue]) => ({
-        date,
-        revenue: dailyRevenue,
-        dateLabel: new Date(`${date}T00:00:00`).toLocaleDateString(
-          "en-IN",
-          { day: "numeric", month: "short" }
-        ),
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-
-    // Fill missing calendar dates with zero before calculating averages.
-    if (dailyData.length === 0) return [];
-
-    const dailyMap = new Map(dailyData.map((item) => [item.date, item]));
-    const firstDate = new Date(`${dailyData[0].date}T00:00:00`);
-    const lastDate = new Date(
-      `${dailyData[dailyData.length - 1].date}T00:00:00`
+    localStorage.setItem(
+      ACTOR_KEY,
+      JSON.stringify({
+        id: actor.id,
+        name: actor.name,
+        wallet_balance: actor.wallet_balance,
+      })
     );
-    const completeDays = [];
-
-    for (
-      const date = new Date(firstDate);
-      date <= lastDate;
-      date.setDate(date.getDate() + 1)
-    ) {
-      const key = [
-        date.getFullYear(),
-        String(date.getMonth() + 1).padStart(2, "0"),
-        String(date.getDate()).padStart(2, "0"),
-      ].join("-");
-
-      const existing = dailyMap.get(key);
-
-      completeDays.push(
-        existing || {
-          date: key,
-          revenue: 0,
-          dateLabel: date.toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-          }),
-        }
-      );
-    }
-
-    return completeDays.map((item, index, items) => {
-      const start = Math.max(0, index - 6);
-      const window = items.slice(start, index + 1);
-      const average =
-        window.reduce((sum, day) => sum + day.revenue, 0) / window.length;
-
-      return {
-        ...item,
-        movingAverage: Number(average.toFixed(2)),
-      };
-    });
-  }, [revenue]);
-
-  // Rank properties for the latest available date.
-  const ranking = useMemo(() => {
-    const latestDate = revenue.reduce((latest, row) => {
-      const date = String(row.booking_date || "").slice(0, 10);
-      return date > latest ? date : latest;
-    }, "");
-
-    if (!latestDate) return [];
-
-    return revenue
-      .filter(
-        (row) =>
-          String(row.booking_date || "").slice(0, 10) === latestDate
-      )
-      .sort(
-        (a, b) =>
-          Number(a.rank_by_moving_avg) -
-            Number(b.rank_by_moving_avg) ||
-          Number(b.moving_avg_7d) - Number(a.moving_avg_7d) ||
-          String(a.property_id).localeCompare(String(b.property_id))
-      );
-  }, [revenue]);
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(ranking.length / PAGE_SIZE)
-  );
-
-  const paginatedRanking = ranking.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  );
+  }, [actor]);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [revenue]);
+    if (!actor?.id) return undefined;
+    let active = true;
+    api(`/api/guests/${actor.id}`)
+      .then((body) => {
+        if (active) setActor(body.data);
+      })
+      .catch((error) => {
+        if (!active) return;
+        if (error.code === "GUEST_NOT_FOUND" || error.code === "INVALID_ID") {
+          setActor(null);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [actor?.id]);
+
+  useEffect(() => {
+    let active = true;
+    api("/api/health")
+      .then(() => {
+        if (active) setOnline(true);
+      })
+      .catch(() => {
+        if (active) setOnline(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [healthTick]);
 
   return (
-    <div className="app-shell">
-      
-<aside className="sidebar">
-  <div className="brand">
-    <div className="brand-mark">
-      <span />
-    </div>
-    <div className="brand-copy">
-      <strong>StaySpot</strong>
-      <span>PROPERTY PLATFORM</span>
-    </div>
-  </div>
-
-  <nav className="navigation" aria-label="Main navigation">
-    <a className="nav-item" href="#browse">
-      <LayoutGrid size={23} />
-      <span>Browse</span>
-    </a>
-
-    <a className="nav-item" href="#booking">
-      <CalendarDays size={23} />
-      <span>Booking</span>
-    </a>
-
-    <a className="nav-item" href="#wallet">
-      <Wallet size={23} />
-      <span>Wallet &amp; Audit Trail</span>
-    </a>
-
-    <a
-      className="nav-item active"
-      href="#analytics"
-      aria-current="page"
-    >
-      <TrendingUp size={23} />
-      <span>Analytics</span>
-    </a>
-
-    <a className="nav-item" href="#hotspots">
-      <MapPin size={23} />
-      <span>Search Hotspots</span>
-    </a>
-
-    <a className="nav-item" href="#reviews">
-      <Star size={23} />
-      <span>Reviews &amp; Amenities</span>
-    </a>
-  </nav>
-
-  <div className="sidebar-bottom">
-    <section className="connections-card">
-      <div className="connections-heading">
-        <Database size={20} />
-        <strong>DATA CONNECTIONS</strong>
-      </div>
-
-      <div className="connection-row">
-        <span className="connection-name">
-          <span className="connection-dot" />
-          PostgreSQL
-        </span>
-        <span className="connection-status">Illustrative</span>
-      </div>
-
-      <div className="connection-row">
-        <span className="connection-name">
-          <span className="connection-dot" />
-          MongoDB
-        </span>
-        <span className="connection-status">Illustrative</span>
-      </div>
-
-      <div className="connections-footer">
-        Prototype status only
-      </div>
-    </section>
-
-    <div className="profile-row">
-      <div className="profile-avatar">OC</div>
-
-      <div className="profile-details">
-        <strong>Olivia Chen</strong>
-        <span>Platform Operator</span>
-      </div>
-
-      <ChevronRight size={21} className="profile-chevron" />
-    </div>
-  </div>
-</aside>
-
-
-      <main className="main-content" id="analytics">
-        <header className="topbar">
-          <div>
-            <div className="eyebrow">STAYSPOT / ANALYTICS</div>
-            <h1>Analytics overview</h1>
-          </div>
-
-          <div className="topbar-right">
-            <span className="live-indicator">
-              <span /> API-connected dashboard
-            </span>
+    <div className="app">
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="mark" aria-hidden="true">
+            S
+          </span>
+          <span>
+            <strong>StaySpot</strong>
+            <small>Property platform</small>
+          </span>
+        </div>
+        <nav className="side-nav" aria-label="Screens">
+          {NAV.map(([id, label]) => (
             <button
-              className="refresh-button"
-              onClick={refreshAnalytics}
-              disabled={refreshing || loading}
+              key={id}
+              type="button"
+              className={screen === id ? "nav-btn is-on" : "nav-btn"}
+              aria-current={screen === id ? "page" : undefined}
+              onClick={() => setScreen(id)}
             >
-              <RefreshCw
-                size={16}
-                className={refreshing ? "spin" : ""}
-              />
-              {refreshing ? "Refreshing..." : "Refresh data"}
+              {label}
             </button>
-          </div>
-        </header>
+          ))}
+        </nav>
+      </aside>
 
-        {error && (
-          <div className="alert error-alert" role="alert">
-            <AlertCircle size={18} />
-            <div>
-              <strong>Couldn't load analytics</strong>
-              <p>{error}</p>
-            </div>
-            <button className="text-button" onClick={loadAnalytics}>
-              Try again
-            </button>
-          </div>
-        )}
+      <div className="workspace-main">
+      <header className="topbar">
+        <p className="crumb">
+          StaySpot <span aria-hidden="true">›</span> {CRUMB[screen]}
+        </p>
+        <button type="button" className="actor-btn" onClick={() => setPickerOpen(true)}>
+          <span className="avatar">{actor ? initials(actor.name) : "?"}</span>
+          <span>
+            <small>{actor ? "Acting as" : "Guest"}</small>
+            <strong>{actor?.name || "Choose a guest"}</strong>
+          </span>
+        </button>
+      </header>
 
-        {notice && (
-          <div className="alert success-alert" role="status">
-            <CheckCircle2 size={18} /> {notice}
-          </div>
-        )}
+      {online === false ? (
+        <div className="banner" role="status">
+          <p>The API on port 3000 is not responding.</p>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setHealthTick((value) => value + 1)}
+          >
+            Check again
+          </button>
+        </div>
+      ) : null}
 
-        <section className="welcome-row">
-          <div>
-            <h2>Performance at a glance</h2>
-            <p>
-              Track bookings, revenue, and property performance in one place.
-            </p>
-          </div>
-          <div className="updated-label">
-            <span className="status-dot" />
-            {lastLoaded
-              ? `Data loaded ${lastLoaded.toLocaleTimeString("en-IN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}`
-              : "Waiting for data"}
-          </div>
-        </section>
-
-        <section className="kpi-grid" aria-label="Summary metrics">
-          {cards.map((card) => {
-            const Icon = card.icon;
-
-            return (
-              <article className="kpi-card" key={card.label}>
-                <div className="kpi-top">
-                  <span>{card.label}</span>
-                  <span className="kpi-icon">
-                    <Icon size={19} />
-                  </span>
-                </div>
-                <div className="kpi-value">
-                  {loading ? "…" : card.value}
-                </div>
-                <div className="kpi-foot">
-                  {loading ? "Loading data" : "Database summary"}
-                </div>
-              </article>
-            );
-          })}
-        </section>
-
-        {/* Revenue chart and analytics notes */}
-        <section className="content-grid" id="revenue">
-          <article className="panel chart-panel">
-            <div className="panel-heading">
-              <div>
-                <h3>Revenue trend</h3>
-                <p>Daily revenue and 7-day moving average</p>
-              </div>
-              <span className="chart-period">Last 30 days</span>
-            </div>
-
-            {loading ? (
-              <div className="table-state">Loading revenue data…</div>
-            ) : chartData.length === 0 ? (
-              <div className="empty-state compact">
-                <TrendingUp size={26} />
-                <strong>No revenue data available</strong>
-                <p>Revenue trends will appear when data is available.</p>
-              </div>
-            ) : (
-              <div className="chart-container">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart
-                    data={chartData}
-                    margin={{ top: 12, right: 18, left: 12, bottom: 8 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="dateLabel"
-                      minTickGap={20}
-                    />
-                    <YAxis
-                      tickFormatter={(value) =>
-                        `₹${new Intl.NumberFormat("en-IN", {
-                          notation: "compact",
-                          maximumFractionDigits: 1,
-                        }).format(value)}`
-                      }
-                    />
-                    <Tooltip
-                      formatter={(value, name) => [
-                        money(value),
-                        name === "revenue"
-                          ? "Daily revenue"
-                          : "7-day moving average",
-                      ]}
-                      labelFormatter={(label) => `Date: ${label}`}
-                    />
-                    <Legend
-                      formatter={(value) =>
-                        value === "revenue"
-                          ? "Daily revenue"
-                          : "7-day moving average"
-                      }
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="revenue"
-                      name="revenue"
-                      stroke="#173f35"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="movingAverage"
-                      name="movingAverage"
-                      stroke="#83a995"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </article>
-
-          <article className="panel insight-panel">
-            <div className="panel-heading">
-              <div>
-                <h3>Analytics notes</h3>
-                <p>How to read this dashboard</p>
-              </div>
-            </div>
-
-            <div className="insight-item">
-              <span className="insight-icon">
-                <TrendingUp size={18} />
-              </span>
-              <div>
-                <strong>Moving average</strong>
-                <p>
-                  Helps smooth daily fluctuations to reveal revenue trends
-                  over seven days.
-                </p>
-              </div>
-            </div>
-
-            <div className="insight-item">
-              <span className="insight-icon">
-                <Building2 size={18} />
-              </span>
-              <div>
-                <strong>Property ranking</strong>
-                <p>
-                  Ranks properties by their seven-day moving-average revenue
-                  for the latest available date.
-                </p>
-              </div>
-            </div>
-
-            <div className="refresh-info">
-              <span>Last data fetch</span>
-              <strong>
-                {lastLoaded
-                  ? lastLoaded.toLocaleString("en-IN")
-                  : "Not loaded yet"}
-              </strong>
-              <small>
-                This is the dashboard fetch time, not the database
-                materialized-view refresh time.
-              </small>
-            </div>
-          </article>
-        </section>
-
-        {/* Property ranking table — appears only once */}
-        <section className="panel table-panel" id="performance">
-          <div className="panel-heading">
-            <div>
-              <h3>Property performance ranking</h3>
-              <p>
-                Ranked by moving-average revenue on the latest available date
-              </p>
-            </div>
-            <span className="row-count">
-              {number(ranking.length)} properties
-            </span>
-          </div>
-
-          {loading ? (
-            <div className="table-state">
-              Loading property rankings…
-            </div>
-          ) : ranking.length === 0 ? (
-            <div className="empty-state compact">
-              <Building2 size={26} />
-              <strong>No ranking data available</strong>
-              <p>Check that the bookings table contains data.</p>
-            </div>
-          ) : (
-            <>
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Rank</th>
-                      <th>Property ID</th>
-                      <th>Daily revenue</th>
-                      <th>7-day moving average</th>
-                      <th>7-day revenue</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {paginatedRanking.map((row) => (
-                      <tr
-                        key={`${row.property_id}-${row.booking_date}`}
-                      >
-                        <td>
-                          <span
-                            className={`rank-badge ${
-                              Number(row.rank_by_moving_avg) <= 3
-                                ? "top-rank"
-                                : ""
-                            }`}
-                          >
-                            #{row.rank_by_moving_avg}
-                          </span>
-                        </td>
-                        <td className="property-id">
-                          {row.property_id}
-                        </td>
-                        <td>{money(row.daily_revenue)}</td>
-                        <td className="emphasis">
-                          {money(row.moving_avg_7d)}
-                        </td>
-                        <td>{money(row.trailing_7d_revenue)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="pagination">
-                <span>
-                  Showing{" "}
-                  {(currentPage - 1) * PAGE_SIZE + 1}
-                  {"–"}
-                  {Math.min(
-                    currentPage * PAGE_SIZE,
-                    ranking.length
-                  )}
-                  {" of "}
-                  {number(ranking.length)}
-                </span>
-
-                <div className="pagination-controls">
-                  <button
-                    type="button"
-                    disabled={currentPage === 1}
-                    onClick={() =>
-                      setCurrentPage((page) => Math.max(1, page - 1))
-                    }
-                  >
-                    Previous
-                  </button>
-
-                  <span>
-                    Page {currentPage} of {totalPages}
-                  </span>
-
-                  <button
-                    type="button"
-                    disabled={currentPage >= totalPages}
-                    onClick={() =>
-                      setCurrentPage((page) =>
-                        Math.min(totalPages, page + 1)
-                      )
-                    }
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </section>
-
-        <footer className="page-footer">
-          <span>StaySpot Analytics · Assignment 1B</span>
-          <span>Property performance and revenue insights</span>
-        </footer>
+      <main>
+        {screen === "browse" ? (
+          <Browse
+            actor={actor}
+            onAct={setActor}
+            onBook={(property) => {
+              setDraftProperty(property);
+              setScreen("book");
+            }}
+            onOpenAudit={(guest) => {
+              setActor(guest);
+              setScreen("audit");
+            }}
+          />
+        ) : null}
+        {screen === "book" ? (
+          <BookStay
+            actor={actor}
+            draftProperty={draftProperty}
+            onWallet={(balance) =>
+              setActor((current) =>
+                current ? { ...current, wallet_balance: balance } : current
+              )
+            }
+            onChooseGuest={() => setPickerOpen(true)}
+          />
+        ) : null}
+        {screen === "audit" ? (
+          <Audit actor={actor} onChooseGuest={() => setPickerOpen(true)} />
+        ) : null}
+        {screen === "analytics" ? <Analytics /> : null}
+        {screen === "map" ? (
+          <MapScreen actor={actor} onChooseGuest={() => setPickerOpen(true)} />
+        ) : null}
+        {screen === "reviews" ? <Reviews /> : null}
       </main>
+      </div>
+
+      <GuestPicker
+        open={pickerOpen}
+        selectedId={actor?.id}
+        onClose={() => setPickerOpen(false)}
+        onSelect={(guest) => {
+          setActor(guest);
+          setPickerOpen(false);
+        }}
+      />
     </div>
   );
 }
-
-export default App;

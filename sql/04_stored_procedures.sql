@@ -4,6 +4,7 @@
 -- ---------------------------
 
 DROP PROCEDURE IF EXISTS process_booking_payment (UUID, UUID, DECIMAL, DATE, INTEGER);
+DROP PROCEDURE IF EXISTS process_booking_payment (UUID, UUID, DECIMAL, DATE, INTEGER, UUID, BOOLEAN, TEXT);
 
 CREATE
 OR REPLACE PROCEDURE process_booking_payment (
@@ -11,7 +12,10 @@ OR REPLACE PROCEDURE process_booking_payment (
     p_property_id UUID,
     p_total_cost DECIMAL(10, 2),
     p_check_in DATE DEFAULT CURRENT_DATE,
-    p_nights INTEGER DEFAULT 1
+    p_nights INTEGER DEFAULT 1,
+    INOUT p_booking_id UUID DEFAULT NULL,
+    INOUT p_success BOOLEAN DEFAULT NULL,
+    INOUT p_error TEXT DEFAULT NULL
 ) LANGUAGE plpgsql AS $$
 DECLARE
     v_balance    DECIMAL(10, 2);
@@ -74,10 +78,14 @@ BEGIN
 
     EXCEPTION
         WHEN check_violation THEN
-            -- Insufficient funds.
+            -- Insufficient funds, or a rejected cost or night count.
             v_failed   := TRUE;
             v_errstate := SQLSTATE;
-            v_errmsg   := SQLERRM;
+            IF SQLERRM LIKE '%guests_wallet_balance_check%' THEN
+                v_errmsg := 'This guest does not have enough wallet balance for this stay.';
+            ELSE
+                v_errmsg := SQLERRM;
+            END IF;
         WHEN serialization_failure THEN
             -- Concurrency conflict
             v_failed   := TRUE;
@@ -98,9 +106,15 @@ BEGIN
     IF v_failed THEN
         -- Discard changes
         ROLLBACK;
+        p_booking_id := NULL;
+        p_success := FALSE;
+        p_error := v_errmsg;
         RAISE WARNING 'Booking rejected [%]: %', v_errstate, v_errmsg;
     ELSE
         COMMIT;
+        p_booking_id := v_booking_id;
+        p_success := TRUE;
+        p_error := NULL;
         RAISE NOTICE 'Booking % committed for guest %', v_booking_id, p_guest_id;
     END IF;
 END;

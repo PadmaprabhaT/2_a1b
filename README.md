@@ -86,3 +86,77 @@ The API's database connection settings are configured in the project files. Make
 - **Database connection fails:** Check that the PostgreSQL and MongoDB containers are running.
 - **Dependencies are missing:** Run `npm install` from `/workspace/api`.
 
+## Run the full website
+
+Use three PowerShell windows. Leave each one open. Docker Desktop must be running.
+
+Postgres in this checkout is published on host port **5433** (container port 5432), so it does not clash with another Postgres already using 5432.
+
+### 1. Databases
+
+```powershell
+cd "C:\Users\Varun\Desktop\SSD frontend"
+docker compose -f .devcontainer/docker-compose.yml up -d postgres mongo
+```
+
+On a brand-new database, load the schema and Mongo collections once:
+
+```powershell
+Get-Content sql\01_schema_ddl.sql, sql\02_indexes.sql, sql\03_triggers_and_audit.sql, sql\04_stored_procedures.sql, sql\05_materialized_views.sql | docker exec -i devcontainer-postgres-1 psql -U postgres -d app -v ON_ERROR_STOP=1
+Get-Content -Raw mongo\01_collections_and_indexes.js | docker exec -i devcontainer-mongo-1 mongosh --quiet
+```
+
+The Mongo script drops and recreates `PropertyAmenities`, `PropertyReviews`, and `SearchSessions`. Skip it when those collections already hold data you want to keep.
+
+### 2. Dummy data
+
+Run this once. A second run inserts another full copy of the Postgres rows.
+
+```powershell
+cd "C:\Users\Varun\Desktop\SSD frontend\data_generation"
+py -m pip install -r requirements.txt
+$env:POSTGRES_HOST = "localhost"
+$env:POSTGRES_PORT = "5433"
+$env:POSTGRES_DB = "app"
+$env:POSTGRES_USER = "postgres"
+$env:POSTGRES_PASSWORD = "postgres"
+$env:MONGO_URI = "mongodb://localhost:27017"
+$env:MONGO_DB = "app"
+py postgres_seeder.py
+py mongo_seeder.py
+```
+
+Search Hotspots only includes searches from the last two hours. The Mongo seeder creates those sessions. After they expire, that map can be empty while the other pages still have data.
+
+### 3. API
+
+```powershell
+cd "C:\Users\Varun\Desktop\SSD frontend\api"
+npm install
+$env:DB = "postgresql://postgres:postgres@localhost:5433/app"
+$env:MONGO_URI = "mongodb://localhost:27017/app"
+node server.js
+```
+
+Wait for `StaySpot API running on port 3000`.
+
+### 4. Website
+
+```powershell
+cd "C:\Users\Varun\Desktop\SSD frontend\web"
+npm install
+npm run dev
+```
+
+Open the `http://localhost:5173` address printed in that window.
+
+### 5. What to try
+
+1. **Browse** — properties, guests, and bookings.
+2. **Booking** — choose a guest whose wallet covers the total, then confirm. The wallet is charged and an audit row is written.
+3. **Wallet & Audit Trail** — open the same guest and read the ledger.
+4. **Analytics** — summary cards, the 7-day revenue chart, the ranking table, and Refresh data.
+5. **Search Hotspots** — start at Hyderabad, Hitech City, or Charminar.
+6. **Reviews & Amenities** — the top average is every property. Select one property to read that property's reviews and amenities.
+
+
