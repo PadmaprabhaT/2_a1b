@@ -509,6 +509,29 @@ dd { margin: 0; font-weight: 600; }
 .review-card header span, .review-card small { color: var(--muted); }
 .review-card p { margin-top: 8px; }
 .ring-list small { color: var(--muted); }
+.ring-list.property-results {
+  max-height: 340px;
+  overflow: auto;
+  margin-bottom: 16px;
+}
+.ring-list button.directory-row {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.map-canvas .property-pin {
+  background: #173f35;
+  border: 2px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  box-shadow: 0 2px 6px rgba(23, 63, 53, 0.35);
+  transform: rotate(-45deg);
+}
+.map-canvas .property-pin.is-active {
+  background: #b7791f;
+  z-index: 500;
+}
 
 .map-canvas {
   height: 500px;

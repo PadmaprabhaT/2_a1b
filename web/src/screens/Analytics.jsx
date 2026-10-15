@@ -26,6 +26,32 @@ import "../analytics.css";
 
 const API = import.meta.env.VITE_API_BASE_URL || "/api";
 const PAGE_SIZE = 10;
+const RANK_SORTS = [
+  { id: "rank", label: "Rank" },
+  { id: "daily_revenue", label: "Daily revenue" },
+  { id: "moving_avg_7d", label: "7-day moving average" },
+  { id: "trailing_7d_revenue", label: "7-day revenue" },
+  { id: "property_id", label: "Property ID" },
+];
+
+function compareRanking(sortKey) {
+  return (a, b) => {
+    const byId = String(a.property_id).localeCompare(String(b.property_id));
+    if (sortKey === "property_id") return byId;
+    if (sortKey === "rank") {
+      return (
+        Number(a.rank_by_moving_avg) - Number(b.rank_by_moving_avg) ||
+        Number(b.moving_avg_7d) - Number(a.moving_avg_7d) ||
+        byId
+      );
+    }
+    return (
+      Number(b[sortKey]) - Number(a[sortKey]) ||
+      Number(a.rank_by_moving_avg) - Number(b.rank_by_moving_avg) ||
+      byId
+    );
+  };
+}
 
 const money = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -41,6 +67,7 @@ export default function Analytics() {
   const [performance, setPerformance] = useState([]);
   const [revenue, setRevenue] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [rankSort, setRankSort] = useState("rank");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -234,14 +261,8 @@ export default function Analytics() {
         (row) =>
           String(row.booking_date || "").slice(0, 10) === latestDate
       )
-      .sort(
-        (a, b) =>
-          Number(a.rank_by_moving_avg) -
-            Number(b.rank_by_moving_avg) ||
-          Number(b.moving_avg_7d) - Number(a.moving_avg_7d) ||
-          String(a.property_id).localeCompare(String(b.property_id))
-      );
-  }, [revenue]);
+      .sort(compareRanking(rankSort));
+  }, [revenue, rankSort]);
 
   const totalPages = Math.max(
     1,
@@ -255,7 +276,7 @@ export default function Analytics() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [revenue]);
+  }, [revenue, rankSort]);
 
   return (
     <div className="analytics-screen">
@@ -477,12 +498,29 @@ export default function Analytics() {
             <div>
               <h3>Property performance ranking</h3>
               <p>
-                Ranked by moving-average revenue on the latest available date
+                {rankSort === "rank"
+                  ? "Ranked by moving-average revenue on the latest available date"
+                  : `Sorted by ${RANK_SORTS.find((item) => item.id === rankSort)?.label.toLowerCase()} on the latest available date`}
               </p>
             </div>
-            <span className="row-count">
-              {number(ranking.length)} properties
-            </span>
+            <div className="panel-heading-tools">
+              <label className="rank-sort">
+                Sort
+                <select
+                  value={rankSort}
+                  onChange={(event) => setRankSort(event.target.value)}
+                >
+                  {RANK_SORTS.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span className="row-count">
+                {number(ranking.length)} properties
+              </span>
+            </div>
           </div>
 
           {loading ? (

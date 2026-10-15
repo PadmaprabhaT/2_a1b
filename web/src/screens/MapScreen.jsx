@@ -11,27 +11,32 @@ const PRESETS = [
   { name: "Charminar", latitude: 17.3616, longitude: 78.4747 },
 ];
 
-function ringOrder(value) {
-  if (value === "at_5km_boundary") return 5;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 99;
-}
-
-function ringLabel(value) {
-  if (value === "at_5km_boundary") return "At the 5 km edge";
-  const number = Number(value);
-  if (!Number.isFinite(number)) return String(value);
-  return `${number}–${number + 1} km`;
-}
-
-function ringRadiusKm(value) {
-  if (value === "at_5km_boundary") return 5;
-  const number = Number(value);
-  return Number.isFinite(number) ? number + 1 : null;
-}
-
 function roundCoord(value) {
   return Math.round(Number(value) * 100000) / 100000;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function pinIcon(active) {
+  return L.divIcon({
+    className: active ? "property-pin is-active" : "property-pin",
+    iconSize: active ? [22, 22] : [16, 16],
+    iconAnchor: active ? [11, 22] : [8, 16],
+    popupAnchor: [0, active ? -20 : -14],
+  });
+}
+
+function distanceLabel(km) {
+  const value = Number(km);
+  if (!Number.isFinite(value)) return "";
+  if (value < 0.1) return "Under 0.1 km";
+  return `${value.toFixed(1)} km`;
 }
 
 export default function MapScreen({ actor, onChooseGuest }) {
@@ -42,13 +47,13 @@ export default function MapScreen({ actor, onChooseGuest }) {
   const [draftLat, setDraftLat] = useState(String(PRESETS[0].latitude));
   const [draftLng, setDraftLng] = useState(String(PRESETS[0].longitude));
   const [coordError, setCoordError] = useState("");
-  const [hotspots, setHotspots] = useState({
+  const [properties, setProperties] = useState({
     status: "loading",
     rows: [],
     radius: 5,
-    hours: 2,
     error: null,
   });
+  const [selectedId, setSelectedId] = useState(null);
   const [tick, setTick] = useState(0);
   const [pings, setPings] = useState([]);
   const [pingBusy, setPingBusy] = useState(false);
@@ -96,41 +101,34 @@ export default function MapScreen({ actor, onChooseGuest }) {
     const query = new URLSearchParams({
       latitude: String(origin.latitude),
       longitude: String(origin.longitude),
+      radius_km: "5",
     });
-    setHotspots((current) => ({ ...current, status: "loading", error: null }));
-    api(`/api/analytics/search-hotspots?${query}`, { signal: controller.signal })
+    setSelectedId(null);
+    setProperties((current) => ({ ...current, status: "loading", error: null }));
+    api(`/api/properties/nearby?${query}`, { signal: controller.signal })
       .then((body) => {
         if (!active) return;
-        const rows = [...(body.data || [])].sort(
-          (a, b) => ringOrder(a.ring_km) - ringOrder(b.ring_km)
-        );
-        setHotspots({
+        setProperties({
           status: "ready",
-          rows,
+          rows: body.data || [],
           radius: body.radius_km ?? 5,
-          hours: body.recency_hours ?? 2,
           error: null,
         });
       })
       .catch((error) => {
         if (!active || error.name === "AbortError") return;
-        setHotspots((current) => ({
-          ...current,
+        setProperties({
           status: "error",
           rows: [],
+          radius: 5,
           error,
-        }));
+        });
       });
     return () => {
       active = false;
       controller.abort();
     };
   }, [origin.latitude, origin.longitude, tick]);
-
-  useEffect(() => {
-    const timer = setInterval(() => setTick((value) => value + 1), 5000);
-    return () => clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -143,31 +141,32 @@ export default function MapScreen({ actor, onChooseGuest }) {
     layers.clearLayers();
     const center = [origin.latitude, origin.longitude];
     L.circle(center, {
-      radius: 5000,
-      color: "#1d3f38",
+      radius: (properties.radius || 5) * 1000,
+      color: "#173f35",
       weight: 2,
-      fillColor: "#1d3f38",
-      fillOpacity: 0.08,
+      fillColor: "#173f35",
+      fillOpacity: 0.06,
     }).addTo(layers);
     L.circleMarker(center, {
       radius: 7,
-      color: "#fffaf4",
+      color: "#ffffff",
       weight: 2,
-      fillColor: "#c6532d",
+      fillColor: "#173f35",
       fillOpacity: 1,
     }).addTo(layers);
-    for (const row of hotspots.rows) {
-      const km = ringRadiusKm(row.ring_km);
-      if (!km) continue;
-      L.circle(center, {
-        radius: km * 1000,
-        color: "#c6532d",
-        weight: 1,
-        dashArray: "4 6",
-        fill: false,
-      })
-        .addTo(layers)
-        .bindTooltip(`${ringLabel(row.ring_km)} · ${row.total_searches} searches`);
+    for (const property of properties.rows) {
+      const active = property.id === selectedId;
+      const marker = L.marker([Number(property.latitude), Number(property.longitude)], {
+        icon: pinIcon(active),
+        title: property.title,
+        zIndexOffset: active ? 800 : 0,
+      });
+      marker.bindPopup(
+        `<strong>${escapeHtml(property.title)}</strong><br>${escapeHtml(money(property.base_price))} / night`
+      );
+      marker.on("click", () => setSelectedId(property.id));
+      marker.addTo(layers);
+      if (active) marker.openPopup();
     }
     for (const ping of pings) {
       L.circleMarker([ping.latitude, ping.longitude], {
@@ -178,7 +177,7 @@ export default function MapScreen({ actor, onChooseGuest }) {
         fillOpacity: 1,
       }).addTo(layers);
     }
-  }, [origin, hotspots.rows, pings]);
+  }, [origin, properties.rows, properties.radius, pings, selectedId]);
 
   function applyDraft(event) {
     event.preventDefault();
@@ -226,7 +225,7 @@ export default function MapScreen({ actor, onChooseGuest }) {
         ...current,
         { latitude: origin.latitude, longitude: origin.longitude, id: crypto.randomUUID() },
       ]);
-      setPingNote("Search saved. The rings refresh on their own.");
+      setPingNote("Search saved.");
       setTick((value) => value + 1);
     } catch (error) {
       setPingNote(error.message);
@@ -240,7 +239,7 @@ export default function MapScreen({ actor, onChooseGuest }) {
       <header className="page-head">
         <div>
           <h1>Search Hotspots</h1>
-          <p className="lede">Explore nearby searches within 5 km.</p>
+          <p className="lede">Properties within 5 km of the map centre.</p>
         </div>
       </header>
 
@@ -280,26 +279,45 @@ export default function MapScreen({ actor, onChooseGuest }) {
 
         <aside className="panel map-side">
           <div className="panel-head">
-            <h2>Within {hotspots.radius} km</h2>
-            <p className="hint">Last {hotspots.hours} hours</p>
+            <h2>Within {properties.radius} km</h2>
+            <p className="hint">
+              {properties.status === "ready"
+                ? `${properties.rows.length} properties`
+                : "Finding properties…"}
+            </p>
           </div>
-          {hotspots.status === "error" ? (
-            <Problem error={hotspots.error} onRetry={() => setTick((value) => value + 1)} />
+          {properties.status === "error" ? (
+            <Problem error={properties.error} onRetry={() => setTick((value) => value + 1)} />
           ) : null}
-          {hotspots.status === "ready" && hotspots.rows.length === 0 ? (
-            <p className="muted">No searches in this circle.</p>
+          {properties.status === "ready" && properties.rows.length === 0 ? (
+            <p className="muted">No properties in this circle.</p>
           ) : null}
-          <ol className="ring-list">
-            {hotspots.rows.map((row) => (
-              <li key={String(row.ring_km)}>
-                <strong>{ringLabel(row.ring_km)}</strong>
-                <span>{row.total_searches} searches</span>
-                <small>
-                  {Number(row.unique_guest_count)} guests · avg budget {money(row.average_budget_limit)} · pool {row.pool_requested_count}
-                </small>
+          <ul className="ring-list property-results">
+            {properties.rows.map((property) => (
+              <li key={property.id}>
+                <button
+                  type="button"
+                  className={
+                    property.id === selectedId ? "directory-row is-selected" : "directory-row"
+                  }
+                  onClick={() => {
+                    setSelectedId(property.id);
+                    mapRef.current?.panTo([
+                      Number(property.latitude),
+                      Number(property.longitude),
+                    ]);
+                  }}
+                >
+                  <span>
+                    <strong>{property.title}</strong>
+                    <small>
+                      {distanceLabel(property.distance_km)} · {money(property.base_price)} / night
+                    </small>
+                  </span>
+                </button>
               </li>
             ))}
-          </ol>
+          </ul>
 
           <form className="stay-form" onSubmit={dropPing}>
             <h3>New search</h3>

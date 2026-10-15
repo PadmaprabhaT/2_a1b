@@ -5,6 +5,93 @@ const { connectMongo } = require("../mongo");
 const { validate: isValidUUID } = require("uuid");
 const router = express.Router();
 const { UUID } = require("mongodb");
+
+// GET /api/properties/nearby?latitude=&longitude=&radius_km=5
+router.get("/nearby", async (req, res) => {
+  const latitude = Number(req.query.latitude);
+  const longitude = Number(req.query.longitude);
+  const radiusKm = req.query.radius_km === undefined ? 5 : Number(req.query.radius_km);
+
+  if (
+    !Number.isFinite(latitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    !Number.isFinite(longitude) ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "INVALID_COORDINATES",
+        message: "Provide valid longitude and latitude coordinates."
+      }
+    });
+  }
+
+  if (!Number.isFinite(radiusKm) || radiusKm <= 0 || radiusKm > 50) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "INVALID_RADIUS",
+        message: "radius_km must be a number between 0 and 50."
+      }
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, title, base_price, latitude, longitude, distance_km
+       FROM (
+         SELECT
+           id,
+           title,
+           base_price,
+           latitude,
+           longitude,
+           (
+             6371 * acos(
+               LEAST(
+                 1::float8,
+                 GREATEST(
+                   -1::float8,
+                   cos(radians($1)) * cos(radians(latitude))
+                     * cos(radians(longitude) - radians($2))
+                   + sin(radians($1)) * sin(radians(latitude))
+                 )
+               )
+             )
+           ) AS distance_km
+         FROM properties
+         WHERE latitude BETWEEN $1 - ($3 / 111.0) AND $1 + ($3 / 111.0)
+           AND longitude BETWEEN $2 - ($3 / (111.0 * GREATEST(cos(radians($1)), 0.01)))
+                             AND $2 + ($3 / (111.0 * GREATEST(cos(radians($1)), 0.01)))
+       ) nearby
+       WHERE distance_km <= $3
+       ORDER BY distance_km ASC, title ASC
+       LIMIT 500`,
+      [latitude, longitude, radiusKm]
+    );
+
+    return res.json({
+      success: true,
+      radius_km: radiusKm,
+      count: result.rows.length,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error("Failed to fetch nearby properties:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Could not retrieve nearby properties."
+      }
+    });
+  }
+});
+
 // GET /api/properties/:id
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
