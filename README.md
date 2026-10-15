@@ -5,7 +5,7 @@
 **Course:** CS6.302 — Software System Development  
 **Assignment:** Assignment 2 — Front-End Design  
 **Repository:** https://github.com/PadmaprabhaT/2_a1b  
-**Final commit hash:** 473559c7dcc24d74eb42f418c1199214ad98fa32  
+**Final commit hash:** 0c4738b80890d68bdec57b20768ad460ab5aaebc  
 **Demo video:** https://drive.google.com/file/d/10bloL260pj3-NQuby6UxF4hmUb9JXOIz/view?usp=drive_link
 
 StaySpot is a demonstration web application for exploring vacation-rental properties, booking a stay using a guest wallet, inspecting wallet audit records, viewing property-performance analytics, exploring search hotspots, and reading property reviews and amenities. It extends an inherited PostgreSQL + MongoDB project with an API and browser-based interface.
