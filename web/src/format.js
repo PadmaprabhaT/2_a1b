@@ -32,6 +32,14 @@ export function addDays(iso, nights) {
   return date.toISOString().slice(0, 10);
 }
 
+export function nightsBetween(start, end) {
+  if (!start || !end) return null;
+  const from = new Date(`${start}T00:00:00.000Z`);
+  const to = new Date(`${end}T00:00:00.000Z`);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
+  return Math.round((to.getTime() - from.getTime()) / 86400000);
+}
+
 export function todayISO() {
   const date = new Date();
   const month = String(date.getMonth() + 1).padStart(2, "0");

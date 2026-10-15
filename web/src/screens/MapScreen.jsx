@@ -39,7 +39,7 @@ function distanceLabel(km) {
   return `${value.toFixed(1)} km`;
 }
 
-export default function MapScreen({ actor, onChooseGuest }) {
+export default function MapScreen() {
   const mapNode = useRef(null);
   const mapRef = useRef(null);
   const layersRef = useRef(null);
@@ -55,15 +55,6 @@ export default function MapScreen({ actor, onChooseGuest }) {
   });
   const [selectedId, setSelectedId] = useState(null);
   const [tick, setTick] = useState(0);
-  const [pings, setPings] = useState([]);
-  const [pingBusy, setPingBusy] = useState(false);
-  const [pingNote, setPingNote] = useState("");
-  const [filters, setFilters] = useState({
-    guests_count: 2,
-    max_price: 800,
-    min_bedrooms: 1,
-    requires_pool: false,
-  });
 
   useEffect(() => {
     const node = mapNode.current;
@@ -168,16 +159,7 @@ export default function MapScreen({ actor, onChooseGuest }) {
       marker.addTo(layers);
       if (active) marker.openPopup();
     }
-    for (const ping of pings) {
-      L.circleMarker([ping.latitude, ping.longitude], {
-        radius: 5,
-        color: "#1d3f38",
-        weight: 2,
-        fillColor: "#f4efe6",
-        fillOpacity: 1,
-      }).addTo(layers);
-    }
-  }, [origin, properties.rows, properties.radius, pings, selectedId]);
+  }, [origin, properties.rows, properties.radius, selectedId]);
 
   function applyDraft(event) {
     event.preventDefault();
@@ -196,42 +178,6 @@ export default function MapScreen({ actor, onChooseGuest }) {
     }
     setCoordError("");
     setOrigin({ latitude: roundCoord(latitude), longitude: roundCoord(longitude) });
-  }
-
-  async function dropPing(event) {
-    event.preventDefault();
-    setPingNote("");
-    if (!actor?.id) {
-      setPingNote("Choose a guest before dropping a search.");
-      return;
-    }
-    setPingBusy(true);
-    try {
-      await api("/api/analytics/search-sessions", {
-        method: "POST",
-        body: JSON.stringify({
-          guest_id: actor.id,
-          latitude: origin.latitude,
-          longitude: origin.longitude,
-          search_filters: {
-            guests_count: Number(filters.guests_count),
-            max_price: Number(filters.max_price),
-            min_bedrooms: Number(filters.min_bedrooms),
-            requires_pool: Boolean(filters.requires_pool),
-          },
-        }),
-      });
-      setPings((current) => [
-        ...current,
-        { latitude: origin.latitude, longitude: origin.longitude, id: crypto.randomUUID() },
-      ]);
-      setPingNote("Search saved.");
-      setTick((value) => value + 1);
-    } catch (error) {
-      setPingNote(error.message);
-    } finally {
-      setPingBusy(false);
-    }
   }
 
   return (
@@ -318,69 +264,6 @@ export default function MapScreen({ actor, onChooseGuest }) {
               </li>
             ))}
           </ul>
-
-          <form className="stay-form" onSubmit={dropPing}>
-            <h3>New search</h3>
-            {!actor ? (
-              <button type="button" className="btn btn-primary" onClick={onChooseGuest}>
-                Choose a guest
-              </button>
-            ) : (
-              <p className="hint">Searching as {actor.name}</p>
-            )}
-            <label className="field">
-              Guests
-              <input
-                type="number"
-                min={1}
-                max={16}
-                value={filters.guests_count}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, guests_count: event.target.value }))
-                }
-              />
-            </label>
-            <label className="field">
-              Max price
-              <input
-                type="number"
-                min={0}
-                value={filters.max_price}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, max_price: event.target.value }))
-                }
-              />
-            </label>
-            <label className="field">
-              Min bedrooms
-              <input
-                type="number"
-                min={0}
-                max={5}
-                value={filters.min_bedrooms}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, min_bedrooms: event.target.value }))
-                }
-              />
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={filters.requires_pool}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    requires_pool: event.target.checked,
-                  }))
-                }
-              />
-              Needs a pool
-            </label>
-            <button type="submit" className="btn btn-clay" disabled={pingBusy || !actor}>
-              {pingBusy ? "Saving…" : "Save search at centre"}
-            </button>
-            {pingNote ? <p className="hint">{pingNote}</p> : null}
-          </form>
         </aside>
       </div>
     </section>

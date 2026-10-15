@@ -186,7 +186,7 @@ export default function App() {
         ) : null}
         {screen === "analytics" ? <Analytics /> : null}
         {screen === "map" ? (
-          <MapScreen actor={actor} onChooseGuest={() => setPickerOpen(true)} />
+          <MapScreen />
         ) : null}
         {screen === "reviews" ? <Reviews /> : null}
       </main>

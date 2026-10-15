@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, getProperties } from "../api";
 import Pager from "../components/Pager";
 import { Empty, Problem } from "../components/States";
-import { addDays, coords, coverStyle, day, money, todayISO, when } from "../format";
+import { addDays, coords, coverStyle, day, money, nightsBetween, todayISO, when } from "../format";
 
 const LIMIT = 6;
 
@@ -21,24 +21,16 @@ export default function BookStay({ actor, draftProperty, onWallet, onChooseGuest
   const [property, setProperty] = useState(draftProperty || null);
   const [nights, setNights] = useState(2);
   const [checkIn, setCheckIn] = useState(todayISO);
-  const [cost, setCost] = useState("");
-  const [costTouched, setCostTouched] = useState(false);
+  const [checkOut, setCheckOut] = useState(() => addDays(todayISO(), 2));
+  const [dateError, setDateError] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
 
   useEffect(() => {
     if (!draftProperty?.id) return;
     setProperty(draftProperty);
-    setCostTouched(false);
     setResult(null);
   }, [draftProperty]);
-
-  useEffect(() => {
-    if (!property || costTouched) return;
-    const nightly = Number(property.base_price);
-    if (!Number.isFinite(nightly)) return;
-    setCost((nightly * Number(nights || 0)).toFixed(2));
-  }, [property, nights, costTouched]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -70,10 +62,43 @@ export default function BookStay({ actor, draftProperty, onWallet, onChooseGuest
   }, [page, tick]);
 
   const stayNights = Number(nights);
-  const checkOut =
-    checkIn && Number.isInteger(stayNights) && stayNights >= 1
-      ? addDays(checkIn, stayNights)
-      : "";
+  const nightly = Number(property?.base_price);
+  const total =
+    property && Number.isFinite(nightly) && Number.isInteger(stayNights) && stayNights >= 1
+      ? Number((nightly * stayNights).toFixed(2))
+      : null;
+
+  function applyNights(next) {
+    const value = Math.max(1, Math.floor(Number(next) || 1));
+    setNights(value);
+    setDateError("");
+    if (checkIn) setCheckOut(addDays(checkIn, value));
+  }
+
+  function applyCheckIn(value) {
+    setCheckIn(value);
+    const span = nightsBetween(value, checkOut);
+    if (span != null && span >= 1) {
+      setNights(span);
+      setDateError("");
+      return;
+    }
+    const fallback = Math.max(1, Math.floor(Number(nights) || 1));
+    setNights(fallback);
+    if (value) setCheckOut(addDays(value, fallback));
+    setDateError("");
+  }
+
+  function applyCheckOut(value) {
+    setCheckOut(value);
+    const span = nightsBetween(checkIn, value);
+    if (span != null && span >= 1) {
+      setNights(span);
+      setDateError("");
+      return;
+    }
+    setDateError("Check-out must be after check-in.");
+  }
   const visible = list.rows.filter((row) =>
     `${row.title} ${row.id}`.toLowerCase().includes(query.trim().toLowerCase())
   );
@@ -89,13 +114,12 @@ export default function BookStay({ actor, draftProperty, onWallet, onChooseGuest
       setResult({ ok: false, message: "Choose a property first." });
       return;
     }
-    if (!Number.isInteger(stayNights) || stayNights < 1) {
-      setResult({ ok: false, message: "Nights must be a whole number of at least 1." });
+    if (!Number.isInteger(stayNights) || stayNights < 1 || nightsBetween(checkIn, checkOut) !== stayNights) {
+      setResult({ ok: false, message: "Choose a check-out date after check-in." });
       return;
     }
-    const total = Number(cost);
-    if (!Number.isFinite(total) || total <= 0) {
-      setResult({ ok: false, message: "Total cost must be greater than zero." });
+    if (total == null || total <= 0) {
+      setResult({ ok: false, message: "Choose a property with a nightly rate." });
       return;
     }
     if (!checkIn) {
@@ -180,7 +204,6 @@ export default function BookStay({ actor, draftProperty, onWallet, onChooseGuest
                 className={property?.id === row.id ? "pick is-selected" : "pick"}
                 onClick={() => {
                   setProperty(row);
-                  setCostTouched(false);
                   setResult(null);
                 }}
               >
@@ -197,12 +220,13 @@ export default function BookStay({ actor, draftProperty, onWallet, onChooseGuest
           <Pager page={page} total={list.total} limit={LIMIT} onPage={setPage} />
 
           <form className="stay-form" onSubmit={submit}>
-            <label className="field">
+            <label className="field nights-field">
               Nights
               <span className="stepper">
                 <button
                   type="button"
-                  onClick={() => setNights((value) => Math.max(1, Number(value) - 1))}
+                  aria-label="Fewer nights"
+                  onClick={() => applyNights(Number(nights) - 1)}
                 >
                   −
                 </button>
@@ -210,49 +234,46 @@ export default function BookStay({ actor, draftProperty, onWallet, onChooseGuest
                   type="number"
                   min={1}
                   value={nights}
-                  onChange={(event) => setNights(event.target.value)}
+                  onChange={(event) => applyNights(event.target.value)}
                 />
                 <button
                   type="button"
-                  onClick={() => setNights((value) => Number(value || 0) + 1)}
+                  aria-label="More nights"
+                  onClick={() => applyNights(Number(nights) + 1)}
                 >
                   +
                 </button>
+                <span className="hint">
+                  {Number.isInteger(stayNights) && stayNights >= 1
+                    ? `${stayNights} night${stayNights === 1 ? "" : "s"}`
+                    : ""}
+                </span>
               </span>
             </label>
-            <label className="field">
-              Check in
-              <input
-                type="date"
-                value={checkIn}
-                onChange={(event) => setCheckIn(event.target.value)}
-              />
-            </label>
-            <label className="field">
-              Check out
-              <input value={checkOut ? day(checkOut) : ""} readOnly />
-            </label>
+            <div className="date-range">
+              <label className="field">
+                Check in
+                <input
+                  type="date"
+                  value={checkIn}
+                  onChange={(event) => applyCheckIn(event.target.value)}
+                />
+              </label>
+              <label className="field">
+                Check out
+                <input
+                  type="date"
+                  value={checkOut}
+                  min={checkIn ? addDays(checkIn, 1) : undefined}
+                  onChange={(event) => applyCheckOut(event.target.value)}
+                />
+              </label>
+            </div>
+            {dateError ? <p className="hint warn field-span">{dateError}</p> : null}
             <label className="field">
               Total cost
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={cost}
-                onChange={(event) => {
-                  setCostTouched(true);
-                  setCost(event.target.value);
-                }}
-              />
+              <input value={total == null ? "" : money(total)} readOnly />
             </label>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => setCostTouched(false)}
-              disabled={!property}
-            >
-              Use nightly rate
-            </button>
           </form>
         </div>
 
@@ -280,7 +301,7 @@ export default function BookStay({ actor, draftProperty, onWallet, onChooseGuest
             </div>
             <div>
               <dt>Total</dt>
-              <dd>{cost === "" ? "—" : money(cost)}</dd>
+              <dd>{total == null ? "—" : money(total)}</dd>
             </div>
           </dl>
           <button type="button" className="btn btn-primary btn-block" disabled={busy} onClick={submit}>

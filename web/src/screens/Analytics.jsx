@@ -540,7 +540,7 @@ export default function Analytics() {
                   <thead>
                     <tr>
                       <th>Rank</th>
-                      <th>Property ID</th>
+                      <th>Property</th>
                       <th>Daily revenue</th>
                       <th>7-day moving average</th>
                       <th>7-day revenue</th>
@@ -564,7 +564,8 @@ export default function Analytics() {
                           </span>
                         </td>
                         <td className="property-id">
-                          {row.property_id}
+                          <span className="property-name">{row.title}</span>
+                          <span>{row.property_id}</span>
                         </td>
                         <td>{money(row.daily_revenue)}</td>
                         <td className="emphasis">

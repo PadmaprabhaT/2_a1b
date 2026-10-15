@@ -37,6 +37,7 @@ router.get("/window-revenue", async (req, res) => {
       all_property_days AS (
         SELECT
           p.id AS property_id,
+          p.title,
           c.booking_date,
           COALESCE(d.daily_revenue, 0)::numeric AS daily_revenue
         FROM properties p
@@ -48,6 +49,7 @@ router.get("/window-revenue", async (req, res) => {
       moving_average_calc AS (
         SELECT
           property_id,
+          title,
           booking_date,
           daily_revenue,
           AVG(daily_revenue) OVER (
@@ -66,6 +68,7 @@ router.get("/window-revenue", async (req, res) => {
         SELECT
           booking_date,
           property_id,
+          title,
           daily_revenue,
           ROUND(moving_avg_7d, 2) AS moving_avg_7d,
           trailing_7d_revenue,
@@ -78,6 +81,7 @@ router.get("/window-revenue", async (req, res) => {
       SELECT
         booking_date,
         property_id,
+        title,
         daily_revenue,
         moving_avg_7d,
         trailing_7d_revenue,
