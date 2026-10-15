@@ -5,8 +5,8 @@
 **Course:** CS6.302 — Software System Development  
 **Assignment:** Assignment 2 — Front-End Design  
 **Repository:** https://github.com/PadmaprabhaT/2_a1b  
-**Final commit hash:** `ADD_FINAL_COMMIT_HASH_BEFORE_SUBMISSION`  
-**Demo video:** `ADD_DEMO_VIDEO_LINK`
+**Final commit hash:** 473559c7dcc24d74eb42f418c1199214ad98fa32  
+**Demo video:** https://drive.google.com/file/d/10bloL260pj3-NQuby6UxF4hmUb9JXOIz/view?usp=drive_link
 
 StaySpot is a demonstration web application for exploring vacation-rental properties, booking a stay using a guest wallet, inspecting wallet audit records, viewing property-performance analytics, exploring search hotspots, and reading property reviews and amenities. It extends an inherited PostgreSQL + MongoDB project with an API and browser-based interface.
 
@@ -185,18 +185,14 @@ Before the demo, verify the following against a freshly seeded environment:
 
 The SQL test queries and recorded execution plans are in `sql/test_queries.sql` and `performance/`. Record any additional tests performed by the team here before submission; do not claim a test passed unless it has been run.
 
-## Demo video
-
-`ADD_DEMO_VIDEO_LINK` — replace this placeholder with the final video URL. The video should be no longer than five minutes and should demonstrate the workflows against seeded data.
-
 ## Team contributions
 
 All four team members contributed to both design and technical development, including reviewing the shared wireframes/design system, discussing the user flows, integrating screens with the API, testing the application and preparing the final submission. The primary ownership below indicates coordination responsibilities; it does not mean the named member worked only on that area.
 
-| Team member | Design contribution | Technical contribution | Primary coordination responsibility |
-|---|---|---|---|
-| `Padamaprabha` | Contributed to screen flows, wireframe review and visual consistency across screens. | Contributed to frontend implementation, API integration and testing. | Database design suggestions, schema review, API setup and backend connectivity |
-| `Rashmi Netam` | Contributed to screen layouts, interaction states and design-system consistency. | Contributed to API/database integration, implementation and debugging. | Wireframe design, visual consistency, Analytics dashboard implementation and frontend integration |
-| `Pal Shah` | Contributed to wireframe review, information hierarchy and usability improvements. | Contributed to frontend implementation, data handling and workflow testing. | Frontend screen development, database configuration, data integration and workflow testing |
-| `Varun Kharayat` | Contributed to visual consistency, responsive behaviour and review of all screen designs. | Contributed to API integration, analytics/map implementation, testing and documentation. | Frontend screen development, database setup support, API integration, data handling and testing |
+| Team member | Roll number | Design contribution | Technical contribution | Primary coordination responsibility |
+|---|---|---|---|---|
+| `Padamaprabha` | `2026202011` | Contributed to screen flows, wireframe review and visual consistency across screens. | Contributed to frontend implementation, API integration and testing. | Database design suggestions, schema review, API setup and backend connectivity |
+| `Rashmi Netam` | `2026204014` | Contributed to screen layouts, interaction states and design-system consistency. | Contributed to API/database integration, implementation and debugging. | Wireframe design, visual consistency, Analytics dashboard implementation and frontend integration |
+| `Pal Shah` | `2026201033` | Contributed to wireframe review, information hierarchy and usability improvements. | Contributed to frontend implementation, data handling and workflow testing. | Frontend screen development, database configuration, data integration and workflow testing |
+| `Varun Kharayat` | `2026201035` | Contributed to visual consistency, responsive behaviour and review of all screen designs. | Contributed to API integration, analytics/map implementation, testing and documentation. | Frontend screen development, database setup support, API integration, data handling and testing |
 
