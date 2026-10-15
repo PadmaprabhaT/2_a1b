@@ -319,15 +319,15 @@ Creates a booking by calling the stored procedure `process_booking_payment`, whi
 
 ### PATCH `/api/bookings/:id/status`
 
-Moves a booking forward. Allowed transitions only: `CONFIRMED` to `CHECKED_IN`, then `CHECKED_IN` to `COMPLETED`.
+Moves a booking forward. Allowed transitions only: `CONFIRMED` to `CHECKED_IN`, then `CHECKED_IN` to `COMPLETED`. The booking must belong to `guest_id`.
 
 **Body**
 
 ```json
-{ "status": "CHECKED_IN" }
+{ "status": "CHECKED_IN", "guest_id": "uuid" }
 ```
 
-`status` must be `CHECKED_IN` or `COMPLETED`.
+`status` must be `CHECKED_IN` or `COMPLETED`. `guest_id` must be the guest who owns the booking.
 
 **200 response**
 
@@ -342,7 +342,8 @@ Moves a booking forward. Allowed transitions only: `CONFIRMED` to `CHECKED_IN`, 
 | Status | Code | When |
 |---|---|---|
 | 200 | | Updated |
-| 400 | `INVALID_ID`, `INVALID_STATUS` | Bad ID or target status |
+| 400 | `INVALID_ID`, `INVALID_STATUS` | Bad booking ID, guest ID, or target status |
+| 403 | `GUEST_MISMATCH` | Booking belongs to a different guest |
 | 404 | `BOOKING_NOT_FOUND` | No such booking |
 | 409 | `INVALID_TRANSITION` | Not allowed from current status |
 | 409 | `ACTIVE_STAY_EXISTS` | Unique constraint (PG `23505`): guest already has a checked-in booking |
@@ -574,7 +575,7 @@ curl -X POST http://localhost:3000/api/bookings \
   -H "Content-Type: application/json" \
   -d '{"guest_id":"<uuid>","property_id":"<uuid>","total_cost":500,"nights":4}'
 curl -X PATCH http://localhost:3000/api/bookings/<booking-uuid>/status \
-  -H "Content-Type: application/json" -d '{"status":"CHECKED_IN"}'
+  -H "Content-Type: application/json" -d '{"status":"CHECKED_IN","guest_id":"<guest-uuid>"}'
 curl -X POST http://localhost:3000/api/analytics/refresh
 curl "http://localhost:3000/api/analytics/search-hotspots?longitude=78.4867&latitude=17.3850"
 curl "http://localhost:3000/api/analytics/reviews?days=60"

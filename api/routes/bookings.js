@@ -318,7 +318,7 @@ router.post("/", async (req, res) => {
  */
 router.patch("/:id/status", async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, guest_id } = req.body;
 
   // Validate booking ID.
   if (!isValidUUID(id)) {
@@ -327,6 +327,16 @@ router.patch("/:id/status", async (req, res) => {
       error: {
         code: "INVALID_ID",
         message: "A valid booking ID is required."
+      }
+    });
+  }
+
+  if (!isValidUUID(guest_id)) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "INVALID_ID",
+        message: "A valid guest ID is required."
       }
     });
   }
@@ -343,10 +353,36 @@ router.patch("/:id/status", async (req, res) => {
   }
 
   try {
+    const existing = await pool.query(
+      "SELECT guest_id, status FROM bookings WHERE id = $1",
+      [id]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: "BOOKING_NOT_FOUND",
+          message: "Booking not found."
+        }
+      });
+    }
+
+    if (existing.rows[0].guest_id !== guest_id) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: "GUEST_MISMATCH",
+          message: "This booking belongs to another guest."
+        }
+      });
+    }
+
     const result = await pool.query(
       `UPDATE bookings
        SET status = $1::booking_status
        WHERE id = $2
+         AND guest_id = $3
          AND (
            ($1 = 'CHECKED_IN' AND status = 'CONFIRMED')
            OR
@@ -361,27 +397,11 @@ router.patch("/:id/status", async (req, res) => {
          check_in_date,
          check_out_date,
          created_at`,
-      [status, id]
+      [status, id, guest_id]
     );
 
-    // No update means the booking does not exist or the transition
-    // is not permitted from its current status.
+    // No update means the transition is not permitted from its current status.
     if (result.rows.length === 0) {
-      const existing = await pool.query(
-        "SELECT status FROM bookings WHERE id = $1",
-        [id]
-      );
-
-      if (existing.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          error: {
-            code: "BOOKING_NOT_FOUND",
-            message: "Booking not found."
-          }
-        });
-      }
-
       return res.status(409).json({
         success: false,
         error: {

@@ -134,13 +134,13 @@ export default function Browse({ actor, onAct, onBook, onOpenAudit }) {
 
   async function advance(booking) {
     const next = nextStatus(booking.status);
-    if (!next) return;
+    if (!next || !actor?.id || booking.guest_id !== actor.id) return;
     setStatusBusy(true);
     setStatusError(null);
     try {
       const body = await api(`/api/bookings/${booking.id}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ status: next }),
+        body: JSON.stringify({ status: next, guest_id: actor.id }),
       });
       setSelected({
         kind: "booking",
@@ -420,7 +420,7 @@ export default function Browse({ actor, onAct, onBook, onOpenAudit }) {
                   {day(selected.row.check_in_date)} – {day(selected.row.check_out_date)}
                 </p>
                 <p className="price">{money(selected.row.total_cost)}</p>
-                {nextStatus(selected.row.status) ? (
+                {nextStatus(selected.row.status) && actor?.id === selected.row.guest_id ? (
                   <button
                     type="button"
                     className="btn btn-primary"
@@ -433,6 +433,12 @@ export default function Browse({ actor, onAct, onBook, onOpenAudit }) {
                         ? "Check in"
                         : "Complete stay"}
                   </button>
+                ) : nextStatus(selected.row.status) ? (
+                  <p className="muted">
+                    {actor
+                      ? "Only this guest can change this booking."
+                      : "Choose a guest to change this booking."}
+                  </p>
                 ) : (
                   <p className="muted">This stay is complete.</p>
                 )}
